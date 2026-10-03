@@ -1,0 +1,174 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>VoltWatch — Monitoring Listrik</title>
+<script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<style>
+/* Password modal: password must be verified by a backend, not by HTML alone. */
+.modal{position:fixed;inset:0;z-index:9999;display:none;place-items:center;padding:20px;background:#050a13d9}
+.modal.open{display:grid}.modalCard{width:min(100%,410px);padding:24px;border:1px solid var(--line);border-radius:18px;background:var(--panel);box-shadow:0 24px 70px #0007}
+.modalCard h2{margin:0 0 6px}.modalCard p{margin:0 0 16px;color:var(--muted);font-size:13px}.modalCard label{display:block;margin-bottom:6px;color:var(--muted);font-size:13px}.modalCard input{width:100%;padding:12px;background:#0c1627;border:1px solid var(--line);border-radius:9px;color:var(--text);margin-bottom:12px}.modalError{color:#ff9b9b;font-size:13px;min-height:20px;margin-top:9px}.relayButtons{display:flex;gap:8px;flex-wrap:wrap}.btnOn{background:#14866a}.btnOff{background:#a83d4b}.btnOn:disabled,.btnOff:disabled{opacity:.45;cursor:not-allowed}
+:root{--bg:#0b1220;--panel:#121d30;--panel2:#18263d;--line:#263750;--text:#edf4ff;--muted:#93a6c2;--blue:#5b8cff;--cyan:#4dd7e5;--green:#43d6a0;--amber:#ffca68}
+*{box-sizing:border-box}body{margin:0;background:linear-gradient(145deg,#0b1220,#101b2d);color:var(--text);font:15px/1.5 system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif}
+.wrap{max-width:1180px;margin:auto;padding:22px}.top{display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;margin-bottom:22px}
+.brand{display:flex;align-items:center;gap:12px}.logo{width:44px;height:44px;border-radius:14px;background:linear-gradient(135deg,var(--blue),var(--cyan));display:grid;place-items:center;color:#081322;font-size:24px;font-weight:900}.brand h1{font-size:21px;margin:0}.brand p{margin:2px 0 0;color:var(--muted);font-size:13px}
+.pill{border:1px solid var(--line);background:var(--panel);padding:8px 12px;border-radius:999px;color:var(--muted);font-size:13px;display:flex;align-items:center;gap:8px}.dot{width:8px;height:8px;border-radius:50%;background:#8190a8}.dot.ok{background:var(--green);box-shadow:0 0 12px #43d6a066}
+.hero{background:linear-gradient(120deg,#1c3560,#172b43);border:1px solid #304b70;border-radius:22px;padding:22px;margin-bottom:18px;display:flex;justify-content:space-between;align-items:center;gap:18px;flex-wrap:wrap}.hero h2{margin:0 0 5px;font-size:22px}.hero p{margin:0;color:#b9cbe3;font-size:14px}.updated{font-size:12px;color:#b9cbe3;margin-top:12px}.heroIcon{font-size:44px;opacity:.9}
+.grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}.card{background:var(--panel);border:1px solid var(--line);border-radius:18px;padding:18px;min-width:0}.metricTop{display:flex;align-items:center;justify-content:space-between;gap:8px;color:var(--muted);font-size:13px}.ico{width:34px;height:34px;border-radius:11px;display:grid;place-items:center;background:#223656;color:var(--cyan);font-size:18px}.value{font-size:clamp(25px,3vw,34px);font-weight:750;letter-spacing:-.7px;margin:14px 0 3px}.unit{font-size:14px;color:var(--muted);font-weight:500}.sub{font-size:12px;color:var(--muted)}
+.lower{display:grid;grid-template-columns:1.7fr 1fr;gap:14px;margin-top:14px}.sectionTitle{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:16px}.sectionTitle h3{font-size:16px;margin:0}.select{background:var(--panel2);border:1px solid var(--line);color:var(--text);padding:8px 10px;border-radius:9px}
+.chartBox{height:270px;position:relative}.statusRow{display:flex;justify-content:space-between;align-items:center;padding:12px 0;border-bottom:1px solid var(--line);gap:10px}.statusRow:last-child{border:0}.statusLabel{color:var(--muted);font-size:13px}.statusValue{font-weight:650}.tag{font-size:12px;padding:5px 9px;border-radius:8px;background:#283750;color:#c7d5e9}.tag.good{background:#123c36;color:#72e5bc}.tag.warn{background:#49361d;color:#ffcf7c}
+.setup{margin-top:14px}.setup details{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:16px}.setup summary{cursor:pointer;font-weight:650}.setup p,.setup li{color:var(--muted);font-size:13px}.formgrid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:14px}.field label{display:block;font-size:12px;color:var(--muted);margin-bottom:5px}.field input{width:100%;padding:10px;background:#0c1627;border:1px solid var(--line);border-radius:9px;color:var(--text)}button{cursor:pointer;border:0;border-radius:10px;padding:11px 15px;font-weight:700;background:var(--blue);color:white}.btnrow{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:12px}.btnsecondary{background:#263750;color:var(--text)}.note{font-size:12px;color:var(--muted);margin-top:12px}.footer{text-align:center;color:#7387a5;font-size:12px;padding:22px 0 8px}
+@media(max-width:760px){.wrap{padding:15px}.grid{grid-template-columns:repeat(2,minmax(0,1fr))}.lower{grid-template-columns:1fr}.hero{padding:18px}.hero h2{font-size:19px}.chartBox{height:240px}}
+@media(max-width:420px){.grid{gap:9px}.card{padding:13px}.value{font-size:25px}.metricTop{font-size:12px}.formgrid{grid-template-columns:1fr}.brand h1{font-size:18px}}
+</style>
+</head>
+<body>
+<div class="modal" id="relayModal" role="dialog" aria-modal="true" aria-labelledby="relayModalTitle">
+  <form class="modalCard" id="relayAuthForm">
+    <h2 id="relayModalTitle">Verifikasi kontrol relay</h2>
+    <p id="relayModalDesc">Masukkan password pemilik untuk melanjutkan.</p>
+    <label for="relayPassword">Password kontrol</label>
+    <input id="relayPassword" type="password" autocomplete="current-password" placeholder="Password pemilik" required>
+    <div class="btnrow"><button type="submit" id="relayConfirmBtn">Verifikasi dan kirim</button><button type="button" class="btnsecondary" id="relayCancelBtn">Batal</button></div>
+    <div class="modalError" id="relayAuthError" aria-live="polite"></div>
+    <p class="note">Password diverifikasi oleh backend. Password tidak disimpan di file HTML. Jika backend belum dikonfigurasi, perintah tidak akan dikirim.</p>
+  </form>
+</div>
+<div class="wrap" id="dashboardApp">
+  <header class="top">
+    <div class="brand"><div class="logo">ϟ</div><div><h1>VoltWatch</h1><p>Smart Power Monitoring</p></div></div>
+    <div class="pill"><span class="dot" id="connDot"></span><span id="connText">Belum terhubung</span></div>
+  </header>
+
+  <section class="hero">
+    <div><h2>Monitoring Listrik</h2><p>Pemantauan daya satu fase melalui ESP32 + PZEM-004T V4.0</p><div class="updated" id="lastUpdate">Menunggu data dari ESP32…</div></div>
+    <div class="heroIcon">⚡</div>
+  </section>
+
+  <section class="grid">
+    <article class="card"><div class="metricTop"><span>Tegangan</span><span class="ico">⌁</span></div><div class="value" id="voltage">— <span class="unit">V</span></div><div class="sub">Tegangan AC</div></article>
+    <article class="card"><div class="metricTop"><span>Arus</span><span class="ico">↯</span></div><div class="value" id="current">— <span class="unit">A</span></div><div class="sub">Arus beban</div></article>
+    <article class="card"><div class="metricTop"><span>Daya Aktif</span><span class="ico">ϟ</span></div><div class="value" id="power">— <span class="unit">W</span></div><div class="sub">Daya yang digunakan</div></article>
+    <article class="card"><div class="metricTop"><span>Energi</span><span class="ico">▤</span></div><div class="value" id="energy">— <span class="unit">kWh</span></div><div class="sub">Akumulasi energi</div></article>
+    <article class="card"><div class="metricTop"><span>Frekuensi</span><span class="ico">∿</span></div><div class="value" id="frequency">— <span class="unit">Hz</span></div><div class="sub">Frekuensi jaringan</div></article>
+    <article class="card"><div class="metricTop"><span>Faktor Daya</span><span class="ico">◉</span></div><div class="value" id="pf">— <span class="unit">PF</span></div><div class="sub">Power factor (0–1)</div></article>
+  </section>
+
+  <section class="lower">
+    <article class="card">
+      <div class="sectionTitle"><h3>Grafik Daya Aktif</h3><select class="select" id="chartRange"><option value="20">20 data terakhir</option><option value="40">40 data terakhir</option><option value="60">60 data terakhir</option></select></div>
+      <div class="chartBox"><canvas id="powerChart"></canvas></div>
+      <div class="note">Grafik diperbarui saat pesan MQTT diterima. Riwayat pada halaman ini tersimpan sementara selama halaman terbuka.</div>
+    </article>
+    <article class="card">
+      <div class="sectionTitle"><h3>Status Sistem</h3><span class="tag" id="systemTag">Menunggu data</span></div>
+      <div class="statusRow"><div><div>ESP32 / MQTT</div><div class="statusLabel">Koneksi broker</div></div><span class="tag" id="mqttStatus">Offline</span></div>
+      <div class="statusRow"><div><div>Relay</div><div class="statusLabel">Status dari topic state</div></div><span class="tag" id="relayStatus">Belum diketahui</span></div>
+      <div class="statusRow"><div><div>Kontrol relay</div><div class="statusLabel">Password diminta saat tombol ditekan</div></div><div class="relayButtons"><button class="btnOn" id="relayOnBtn">ON</button><button class="btnOff" id="relayOffBtn">OFF</button></div></div>
+      <div class="statusRow"><div><div>Data terakhir</div><div class="statusLabel">Pembaruan sensor</div></div><span class="statusValue" id="age">—</span></div>
+      <p class="note">Monitoring bersifat publik. Perintah relay hanya dikirim melalui endpoint backend yang memverifikasi password; jangan hubungkan tombol ke topik perintah pada broker MQTT publik.</p>
+    </article>
+  </section>
+
+  <section class="setup">
+    <details>
+      <summary>Pengaturan koneksi MQTT</summary>
+      <p>Pengaturan awal menggunakan broker HiveMQ publik dan topik yang sebelumnya dipakai program ESP32. Ubah jika topik pada sketch berbeda.</p>
+      <div class="formgrid">
+        <div class="field" style="grid-column:1/-1"><label>URL backend kontrol relay (diisi setelah server disiapkan)</label><input id="relayApiUrl" placeholder="https://alamat-server-anda/api/relay"></div>
+        <div class="field"><label>Broker WebSocket URL</label><input id="broker" value="wss://broker.hivemq.com:8884/mqtt"></div>
+        <div class="field"><label>Client ID</label><input id="clientId" value=""></div>
+        <div class="field"><label>Topik tegangan</label><input id="tVoltage" value="iot/yoga-powermeter-esp32-7261/voltage"></div>
+        <div class="field"><label>Topik arus</label><input id="tCurrent" value="iot/yoga-powermeter-esp32-7261/current"></div>
+        <div class="field"><label>Topik daya</label><input id="tPower" value="iot/yoga-powermeter-esp32-7261/power"></div>
+        <div class="field"><label>Topik energi</label><input id="tEnergy" value="iot/yoga-powermeter-esp32-7261/energy"></div>
+        <div class="field"><label>Topik frekuensi</label><input id="tFrequency" value="iot/yoga-powermeter-esp32-7261/frequency"></div>
+        <div class="field"><label>Topik faktor daya</label><input id="tPf" value="iot/yoga-powermeter-esp32-7261/power_factor"></div>
+        <div class="field"><label>Topik status relay (opsional)</label><input id="tRelay" value="iot/yoga-powermeter-esp32-7261/relay/state"></div>
+      </div>
+      <div class="btnrow"><button id="connectBtn">Hubungkan MQTT</button><button class="btnsecondary" id="disconnectBtn">Putuskan</button></div>
+      <p class="note">Catatan: broker publik tidak privat; siapa pun yang mengetahui topik dapat memantau pesan. Gunakan topik unik; jangan gunakan broker ini untuk perintah relay atau data sensitif. Untuk akses jarak jauh yang stabil, halaman ini perlu di-host pada layanan web dan ESP32 harus tetap terhubung ke internet.</p>
+    </details>
+  </section>
+  <div class="footer">VoltWatch • Dashboard contoh untuk ESP32 + PZEM-004T V4.0</div>
+</div>
+<script>
+const $ = id => document.getElementById(id);
+// Monitoring dapat dilihat tanpa login. Kontrol relay hanya melalui backend terautentikasi.
+let pendingRelayState = null;
+function openRelayModal(state){
+  pendingRelayState = state;
+  $('relayModalTitle').textContent = 'Konfirmasi relay ' + state;
+  $('relayModalDesc').textContent = 'Masukkan password pemilik untuk mengirim perintah ' + state + '.';
+  $('relayPassword').value = '';
+  $('relayAuthError').textContent = '';
+  $('relayModal').classList.add('open');
+  $('relayPassword').focus();
+}
+function closeRelayModal(){ $('relayModal').classList.remove('open'); pendingRelayState=null; }
+$('relayOnBtn').addEventListener('click',()=>openRelayModal('ON'));
+$('relayOffBtn').addEventListener('click',()=>openRelayModal('OFF'));
+$('relayCancelBtn').addEventListener('click',closeRelayModal);
+$('relayAuthForm').addEventListener('submit',async event=>{
+  event.preventDefault();
+  const endpoint=$('relayApiUrl').value.trim();
+  const password=$('relayPassword').value;
+  if(!endpoint){$('relayAuthError').textContent='Backend belum dikonfigurasi. Perintah relay tidak dikirim.';return;}
+  let url;
+  try{url=new URL(endpoint)}catch(e){$('relayAuthError').textContent='URL backend tidak valid.';return;}
+  if(url.protocol!=='https:'){$('relayAuthError').textContent='Gunakan URL HTTPS untuk melindungi password.';return;}
+  const state=pendingRelayState;
+  $('relayConfirmBtn').disabled=true;
+  $('relayAuthError').textContent='Memverifikasi dan mengirim perintah…';
+  try{
+    const response=await fetch(endpoint,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({password:password,state:state})});
+    const result=await response.json().catch(()=>({}));
+    if(!response.ok)throw new Error(result.message||'Verifikasi gagal atau server menolak perintah.');
+    $('relayAuthError').textContent=result.message||('Perintah '+state+' diterima server. Menunggu status relay…');
+    $('relayPassword').value='';
+    setTimeout(closeRelayModal,1600);
+  }catch(error){$('relayAuthError').textContent=error.message||'Tidak dapat menghubungi backend. Relay tidak dikendalikan.';}
+  finally{$('relayConfirmBtn').disabled=false;}
+});
+$('clientId').value = 'voltwatch_web_' + Math.random().toString(16).slice(2,10);
+let client=null, lastDataAt=null;
+const series={labels:[],values:[]};
+const ctx=$('powerChart').getContext('2d');
+const chart=new Chart(ctx,{type:'line',data:{labels:series.labels,datasets:[{label:'Daya (W)',data:series.values,borderColor:'#5b8cff',backgroundColor:'rgba(91,140,255,.14)',fill:true,tension:.3,pointRadius:2,borderWidth:2}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{ticks:{color:'#93a6c2',maxTicksLimit:6},grid:{color:'rgba(147,166,194,.08)'}},y:{beginAtZero:true,ticks:{color:'#93a6c2'},grid:{color:'rgba(147,166,194,.12)'}}}}});
+function setMetric(id,val,unit,digits=2){if(val===undefined||val===null||val===''||!Number.isFinite(Number(val)))return;$(id).innerHTML=Number(val).toLocaleString('id-ID',{maximumFractionDigits:digits})+' <span class="unit">'+unit+'</span>'}
+function setConn(ok,text){$('connDot').classList.toggle('ok',ok);$('connText').textContent=text;$('mqttStatus').textContent=ok?'Terhubung':'Offline';$('mqttStatus').className='tag '+(ok?'good':'warn')}
+function addPower(v){if(!Number.isFinite(Number(v)))return;const now=new Date();series.labels.push(now.toLocaleTimeString('id-ID',{hour:'2-digit',minute:'2-digit',second:'2-digit'}));series.values.push(Number(v));const max=Number($('chartRange').value)||20;while(series.labels.length>max){series.labels.shift();series.values.shift()}chart.update('none')}
+function handleValue(topic,payload,topics){
+ let raw=payload.toString().trim(), val=raw;
+ try { const obj=JSON.parse(raw); if(obj&&typeof obj==='object'){
+   if(obj.v!==undefined)setMetric('voltage',obj.v,'V'); if(obj.a!==undefined)setMetric('current',obj.a,'A'); if(obj.w!==undefined){setMetric('power',obj.w,'W');addPower(obj.w)}
+   if(obj.e!==undefined)setMetric('energy',obj.e,'kWh'); if(obj.f!==undefined)setMetric('frequency',obj.f,'Hz'); if(obj.pf!==undefined)setMetric('pf',obj.pf,'PF');
+   lastDataAt=new Date(); $('lastUpdate').textContent='Data diterima: '+lastDataAt.toLocaleString('id-ID'); $('age').textContent='Baru saja'; $('systemTag').textContent='Data masuk'; $('systemTag').className='tag good'; return;
+ }}catch(e){}
+ const mapping=[[topics.v,'voltage','V',2],[topics.a,'current','A',3],[topics.w,'power','W',2],[topics.e,'energy','kWh',3],[topics.f,'frequency','Hz',2],[topics.pf,'pf','PF',3]];
+ for(const [t,id,u,d] of mapping){if(topic===t){const n=Number(val);setMetric(id,n,u,d);if(id==='power')addPower(n);lastDataAt=new Date();$('lastUpdate').textContent='Data diterima: '+lastDataAt.toLocaleString('id-ID');$('age').textContent='Baru saja';$('systemTag').textContent='Data masuk';$('systemTag').className='tag good';return}}
+ if(topic===topics.relay){$('relayStatus').textContent=/^(1|on|true)$/i.test(raw)?'ON':/^(0|off|false)$/i.test(raw)?'OFF':raw;$('relayStatus').className='tag'}
+}
+function connect(){
+ if(typeof mqtt==='undefined'){alert('Library MQTT gagal dimuat. Periksa koneksi internet lalu muat ulang halaman.');return}
+ if(client){try{client.end(true)}catch(e){}}
+ const topics={v:$('tVoltage').value.trim(),a:$('tCurrent').value.trim(),w:$('tPower').value.trim(),e:$('tEnergy').value.trim(),f:$('tFrequency').value.trim(),pf:$('tPf').value.trim(),relay:$('tRelay').value.trim()};
+ const broker=$('broker').value.trim();
+ try{client=mqtt.connect(broker,{clientId:$('clientId').value.trim()||('voltwatch_'+Math.random().toString(16).slice(2,9)),clean:true,connectTimeout:10000,reconnectPeriod:3000,keepalive:30})}
+ catch(e){alert('URL MQTT tidak valid.');return}
+ client.on('connect',()=>{setConn(true,'MQTT terhubung');$('systemTag').textContent='Menunggu data';$('systemTag').className='tag';const all=[topics.v,topics.a,topics.w,topics.e,topics.f,topics.pf,topics.relay].filter(Boolean);client.subscribe([...new Set(all)],{qos:0},err=>{if(err)console.error(err)})});
+ client.on('reconnect',()=>setConn(false,'Menghubungkan ulang…'));
+ client.on('close',()=>setConn(false,'Koneksi terputus'));
+ client.on('error',()=>setConn(false,'Periksa koneksi'));
+ client.on('message',(topic,payload)=>handleValue(topic,payload,topics));
+}
+$('connectBtn').addEventListener('click',connect);
+$('disconnectBtn').addEventListener('click',()=>{if(client){client.end(true);client=null}setConn(false,'Diputuskan')});
+$('chartRange').addEventListener('change',()=>{while(series.labels.length>Number($('chartRange').value)){series.labels.shift();series.values.shift()}chart.update()});
+setInterval(()=>{if(lastDataAt){const sec=Math.floor((Date.now()-lastDataAt.getTime())/1000);$('age').textContent=sec<2?'Baru saja':sec<60?sec+' dtk lalu':Math.floor(sec/60)+' mnt lalu';if(sec>30){$('systemTag').textContent='Data terlambat';$('systemTag').className='tag warn'}}},1000);
+</script>
+</body>
+</html>
